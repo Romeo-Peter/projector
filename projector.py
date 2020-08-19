@@ -1,11 +1,18 @@
 import argparse
 import os
 import time
-from decouple import config
+from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import WebDriverException, NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
+from decouple import config
+
+from projectorEmail import ReadEmail
+
+
+timestamp = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def create_project_dir(name, storage):
@@ -35,7 +42,31 @@ def initiate_git(directory):
         os.system("echo . > .gitignore && echo . > README.md")
         os.system("git init")
         os.system("git add . && git commit -m 'test'")
-        print(f"Git initiated at {args.projectName} \b\b")
+        print(f"[{timestamp}] Git initiated \n")
+
+
+def create_repo(driver, repo_name):
+    """
+    Create new github repository
+    """
+    new_project_btn = driver.find_element_by_link_text("New")
+    new_project_btn.click()
+
+    time.sleep(3)
+
+    repository_name = driver.find_element_by_id("repository_name")
+    repository_name.clear()
+    repository_name.send_keys(repo_name)
+
+    create_repository_btn = driver.find_element_by_xpath(
+        "//div[@class='js-with-permission-fields']/button[last()]"
+    )
+
+    if create_repository_btn:
+        driver.execute_script("arguments[0].scrollIntoView();", create_repository_btn)
+        time.sleep(2)
+        create_repository_btn.click()
+        print(f"[{timestamp}] Repo created: {repo_name}")
 
 
 # REMOTE REPOSITORY
@@ -43,7 +74,7 @@ def remote_repository(url, repo_name):
     try:
         driver = webdriver.Firefox()
         driver.get(url)
-        assert f"Projector in {driver.title}"
+        print(f"[{timestamp}] Projector in {driver.title}")
         driver.find_element_by_link_text("Sign in").click()
 
         time.sleep(3)
@@ -60,42 +91,48 @@ def remote_repository(url, repo_name):
         sign_in_btn = driver.find_element_by_name("commit")
         sign_in_btn.click()
 
-        assert f"Projector has logged in user: {config('GITHUB_USERNAME', cast=str)}"
+        print(
+            f"[{timestamp}] Projector has logged in user: '{config('GITHUB_USERNAME', cast=str)}' into {driver.title}"
+        )
 
         time.sleep(3)
 
-        """
+        try:
+            """
             Error handling for element (new_project_btn) not found.
             Verification sent to email from github (sent to phone for 2F-AUTH)
-        """
-        try:
-            new_project_btn = driver.find_element_by_link_text("New")
-            new_project_btn.click()
+            """
 
-            time.sleep(3)
-
-            repository_name = driver.find_element_by_id("repository_name")
-            repository_name.clear()
-            repository_name.send_keys(repo_name)
-
-            create_repository = driver.find_elements_by_xpath(
-                "//form[@id='new_repository']/button[@type='submit']"
-            )
-            # create_repository.click()
-            if create_repository:
-                print("Create button")
-
-            assert f"Projector has created repository: {repo_name}"
+            # Create new repo
+            create_repo(driver, repo_name)
         except NoSuchElementException as e:
             print(e.msg, sep="\n")
-            print("Opening email client to read verification code...", sep="\n")
+            print(
+                f"[{timestamp}] Opening email client to read verification code",
+                sep="\n",
+            )
+            get_mail = ReadEmail(
+                config("EMAIL_ADDRS", cast=str), config("EMAIL_PASSWORD", cast=str)
+            )
+            otp_code = get_mail.read_email()
 
-        print("Closing browser...")
+            verification_otp_field = driver.find_element_by_id("otp")
+            verification_otp_field.clear()
+            verification_otp_field.send_keys(otp_code)
+
+            verify_btn = driver.find_element_by_class_name("btn-block")
+            verify_btn.click()
+
+            # Create new repo
+            create_repo(driver, repo_name)
+
+        # print(f"[timestamp] Closing browser...")
         time.sleep(3)
-        driver.close()
+        # driver.close()
 
-    except WebDriverException:
-        print(f"Can't reach website: {url}")
+    except WebDriverException as e:
+        # print(f"[{timestamp}] Unable to reach website: {url}")
+        print(e.screen)
 
 
 if __name__ == "__main__":
