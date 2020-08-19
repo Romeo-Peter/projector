@@ -1,7 +1,7 @@
-Package    Version
----------- -------
-pip        10.0.1
-selenium   3.141.0
-setuptools 39.0.1
-urllib3    1.25.9
-
+Package         Version
+--------------- -------
+pip             10.0.1 
+python-decouple 3.3    
+selenium        3.141.0
+setuptools      39.0.1 
+urllib3         1.25.9 
